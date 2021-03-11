@@ -12,7 +12,6 @@ const url = 'mongodb+srv://samuel:9647ourstreet@clusterourstreet.0w4e8.mongodb.n
 const options = { reconnectTries: Number.MAX_VALUE, reconnectInterval: 500, poolSize: 5, useNewUrlParser: true }
 
 //Concexao
-
 mongoose.connect(url, options);
 //mongoose.set('useCreateIndex', true)
 
@@ -69,18 +68,64 @@ app.get('/rua/:cep', (req, res) => {
 	});
 });
 
-/* Buscar rua por nome
+/* Buscar rua por nome*/
 app.get('/rua/nome/:rua', (req, res) => {
-	var str = req.params.rua;
-	var rua = str.replace(/%20/g, " ");
-	ruas.find({'rua':rua}, (err, data) => {	
+	var rua = req.params.rua;
+	var normalizada = new RegExp(`${rua}[À-ü]?`, 'i');
+	ruas.find({'rua':{ $regex: normalizada }}, (err, data) => {	
 		if (err) return res.send({ error: 'Erro ao consultar rua!' 
 	});
 
-	return res.send(data);
+	resposta = data.map( (dados) => {
+		return {"rua" : dados.rua, "cep" : dados.cep, "bairro" : dados.bairro, "cidade" : dados.cidade, "calçamento" : dados.calçamento, "saneamento" : dados.saneamento}
+	})
+	return res.send(resposta);
 		
 	});
-});*/
+});
+
+/* Buscar rua por bairro*/
+app.get('/ruas/bairro/:bairro', (req, res) => {
+	var bairro = req.params.bairro;
+	var normalizada = new RegExp(`${bairro}[À-ü]?`, 'i');
+	ruas.find({'bairro':{ $regex: normalizada }}, (err, data) => {	
+		if (err) return res.send({ error: 'Erro ao consultar rua!' 
+	});
+
+	resposta = data.map( (dados) => {
+		return {"rua" : dados.rua, "cep" : dados.cep, "bairro" : dados.bairro, "cidade" : dados.cidade, "calçamento" : dados.calçamento, "saneamento" : dados.saneamento}
+	})
+	return res.send(resposta);
+		
+	});
+});
+
+/* Buscar rua por zona*/
+app.get('/ruas/zona/:zona', (req, res) => {
+	var zona = req.params.zona;
+	if(zona=="norte"){
+		var query=['Igapó', 'Lagoa Azul', ' Nossa Senhora da Apresentação', 'Pajuçara', 'Potengi', 'Redinha', 'Salinas'];
+	}else if(zona=="sul"){
+		var query=['Candelária', 'Capim Macio', 'Lagoa Nova', 'Neópolis', 'Nova Descoberta', ' Pitimbu', 'Ponta Negra'];
+	}else if(zona=="leste"){
+		var query=['Alecrim', 'Areia Preta', 'Barro Vermelho', 'Cidade Alta', 'Petrópolis', 'Praia do Meio', 'Ribeira', 'Rocas', 'Santos Reis', 'Tirol'];
+	}else if(zona=="oeste"){
+		var query=['Bom Pastor', 'Cidade da Esperança', 'Cidade Nova', 'Dix-Sept Rosado', 'Felipe Camarão', 'Guararapes', 'Nordeste', 'Nossa Senhora de Nazaré', 'Planalto', 'Quintas'];
+	}else{
+		var query="erro";
+	}
+	//var normalizada = new RegExp(`${query}[À-ü]?`, 'i');
+	ruas.find({'bairro': { $in: query }}, (err, data) => {	
+		if (err) return res.send({ error: 'Erro ao consultar rua!' 
+	});
+
+	resposta = data.map( (dados) => {
+		return {"rua" : dados.rua, "cep" : dados.cep, "bairro" : dados.bairro, "cidade" : dados.cidade, "calçamento" : dados.calçamento, "saneamento" : dados.saneamento}
+	})
+	return res.send(resposta);
+		
+	});
+});
 
 // Exibir ruas calçadas
 app.get('/ruas/calcadas', (req, res) => {
@@ -167,7 +212,7 @@ app.put('/editStreet/:cep', auth, (req, res) => {
 })
 
 // criando usuário
-app.post('/create', (req, res) => {
+app.post('/create', auth, (req, res) => {
 	const { nome, email, senha } = req.body;
 	if (!nome || !email || !senha) return res.send({ error: 'Dados insuficientes!' });
 
@@ -186,13 +231,26 @@ app.post('/create', (req, res) => {
 
 // editar usuario
 app.put('/editUser/:email', auth, (req, res) => {
-	const {senha} = req.body;
-	if (!senha) return res.send({ error: 'Dados insuficientes para editar usuário!' });
+	const { nome } = req.body;
+	if (!nome ) return res.send({ error: 'Dados insuficientes para editar usuário!' });
 	var email = req.params.email;
-	ruas.findOneAndUpdate({'email':email}, req.body, {new: true}, (err, dados) => {
+	users.findOneAndUpdate({'email': email}, req.body, {new: true}, (err, dados) => {
+		
 		if (err) return res.send({ error: 'Erro ao atualizar usuário!' });
-		data.senha = undefined;
 		if (dados) return res.send(dados);
+	});	
+})
+
+app.delete('/deleteUser/:email', auth, (req, res) => {
+	users.deleteOne({email: req.params.email}, (err) => {
+		if(err) return res.status(400).json({
+            error: true,
+            message: "Error: Erro ao deletar usuário!"
+        });
+		return res.json({
+			error: false,
+			message: "Usuário deletado com sucesso!"
+		});
 	});
 })
 
@@ -233,7 +291,5 @@ app.listen(3000, () => {
 
 
 const createUserToken = (userId) => {
-
 	return jwt.sign({ id: userId }, 'umasenha', { expiresIn: '30d' });
-
 }
