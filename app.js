@@ -241,14 +241,24 @@ app.put('/editUser/:email', auth, (req, res) => {
 	});	
 })
 
+app.put('/editPassword/:email', auth, (req, res) => {
+	const { senha } = req.body;
+	if (!senha ) return res.send({ error: 'Dados insuficientes para editar usuário!' });
+	var email = req.params.email;
+	var salt = bcrypt.genSaltSync(10) 
+	var pass = bcrypt.hashSync(senha, salt)
+	users.findOneAndUpdate({'email': email}, {'senha':pass}, {new: true}, (err, dados) => {
+		if (err) return res.send({ error: 'Erro ao atualizar usuário!' });
+		return res.send({ dados, token: createUserToken(dados.id) });
+	});	
+})
+
 app.delete('/deleteUser/:email', auth, (req, res) => {
 	users.deleteOne({email: req.params.email}, (err) => {
 		if(err) return res.status(400).json({
-            error: true,
             message: "Error: Erro ao deletar usuário!"
         });
-		return res.json({
-			error: false,
+		return res.send({
 			message: "Usuário deletado com sucesso!"
 		});
 	});
@@ -274,7 +284,7 @@ app.post('/auth', auth, (req, res) => {
 
 });
 
-app.get('/authentication', (req, res) => {
+app.get('/authentication', auth, (req, res) => {
 	users.find({}, (err, data) => {	
 		if (err) return res.send({ error: 'Erro ao autenticar usuário!' 
 	});
